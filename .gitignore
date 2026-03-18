@@ -1,0 +1,199 @@
+# ============================================================================
+# Data Files - DO NOT COMMIT
+# ============================================================================
+
+# Raw data (potentially large, from external sources)
+data/raw/
+data/processed/
+
+# HDF5 files (large single-cell data)
+*.h5ad
+*.h5
+
+# ============================================================================
+# Results & Outputs - DO NOT COMMIT
+# ============================================================================
+
+# Generated figures and visualizations
+results/
+
+# Summary and report files (user-generated)
+*.png
+*.pdf
+*.jpg
+*.jpeg
+
+# ============================================================================
+# Logs - DO NOT COMMIT
+# ============================================================================
+
+logs/
+*.log
+
+# ============================================================================
+# Python & Virtual Environments
+# ============================================================================
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+.env
+.env.local
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# pytest & testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# IPython
+profile_default/
+ipython_config.py
+
+# ============================================================================
+# IDE & Editor Files
+# ============================================================================
+
+# VS Code
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# PyCharm
+.idea/
+*.iml
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================================================
+# OS-specific Files
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+.directory
+
+# ============================================================================
+# Temporary & Backup Files
+# ============================================================================
+
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+.#*
+
+# ============================================================================
+# IDE specific
+# ============================================================================
+
+# Visual Studio Code workspace settings (user-specific)
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# ============================================================================
+# OS temporary files
+# ============================================================================
+
+.trash/
+.cache/
+
+# ============================================================================
+# Project-specific excludes
+# ============================================================================
+
+# Keep these directories but ignore their contents
+# (except for .gitkeep files to preserve directory structure)
+data/raw/.gitkeep
+data/processed/.gitkeep
+results/.gitkeep
+logs/.gitkeep
+
+# Exclude CSV/data files but keep directory
+data/**/*.csv
+data/**/*.tsv
+data/**/*.xlsx
+
+# Exclude all PNG/PDF figures but keep directory
+results/**/*.png
+results/**/*.pdf
+
+# Exclude all log files but keep directory
+logs/**/*.log
+
+# ============================================================================
+# Keep these files (negate the above rules)
+# ============================================================================
+
+!.gitignore
+!requirements.txt
+!config.yaml
+!run_step1.py
+!src/
+!tests/
+!notebooks/
+!*.md

@@ -1,0 +1,58 @@
+# Configuration for AD Research Pipeline Step 1
+
+# Synapse IDs for ROSMAP data
+proteomics_synapse_id: syn21261728
+metadata_synapse_id: syn3191087
+snrnaseq_synapse_id: syn18485175
+
+# Data paths
+data_dir: data
+raw_data_dir: data/raw
+processed_data_dir: data/processed
+results_dir: results
+results_step1_dir: results/step1
+
+# Step 1A: Preprocessing
+qc_threshold_missing: 0.50  # Remove proteins >50% missing
+knn_neighbors: 5
+log2_pseudocount: 1
+
+# Step 1B: Deconvolution
+cell_types:
+  - Ex
+  - In
+  - Ast
+  - Oli
+  - Mic
+  - OPCs
+n_cell_types: 6
+
+# Step 1C: Pseudotime
+top_variable_proteins: 500
+pca_n_components: 50
+pseudotime_n_neighbors: 15
+pseudotime_min_dist: 0.3
+diffusion_n_comps: 15
+diffusion_n_dcs: 10
+
+# Step 1D: NMF Clustering
+nmf_n_runs: 50  # Base run + 50 random runs per k
+nmf_init: nndsvda
+cophenetic_threshold: 0.85
+min_cluster_size: 25
+silhouette_threshold: -0.5
+top_defining_proteins: 50
+
+# Step 1E: Subtype Validation
+braak_threshold_for_event: 4
+mmse_threshold: 20
+go_enrichment_threshold: 0.05
+n_top_go_terms: 10
+
+# Logging
+log_file: logs/step1_run.log
+log_level: INFO
+
+# Test mode
+test_n_samples: 50
+test_n_proteins: 200
