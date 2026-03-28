@@ -24,8 +24,15 @@ def main(data_dir, results_dir, test_mode=False):
     if not os.path.exists(master_df_path) or not os.path.exists(deconv_path):
         raise FileNotFoundError("Required Step 1 outputs missing.")
         
-    master_df = pd.read_csv(master_df_path)
+    master_df = pd.read_csv(master_df_path, index_col=0)
+    # Ensure patient_id column exists
+    if 'patient_id' not in master_df.columns:
+        master_df['patient_id'] = master_df.index
+        
     deconv_df = pd.read_csv(deconv_path)
+    # Standardize column name if it was old version
+    if 'sample_id' in deconv_df.columns:
+        deconv_df.rename(columns={'sample_id': 'patient_id'}, inplace=True)
     
     # 2. Results container
     output_dir = os.path.join(results_dir, 'step3', 'processed_data')
@@ -70,13 +77,13 @@ def main(data_dir, results_dir, test_mode=False):
         all_st_hc_pts = np.concatenate([st_patients, hc_patients])
         
         # Extract features for these patients
-        st_deconv = deconv_df[(deconv_df['sample_id'].isin(all_st_hc_pts)) & (deconv_df['cell_type'] == ct)]
+        st_deconv = deconv_df[(deconv_df['patient_id'].isin(all_st_hc_pts)) & (deconv_df['cell_type'] == ct)]
         
         if st_deconv.empty:
             continue
             
         # Pivot features
-        feat_matrix = st_deconv.pivot(index='sample_id', columns='protein_id', values='abundance')
+        feat_matrix = st_deconv.pivot(index='patient_id', columns='protein_id', values='abundance')
         # Reorder to match graph proteins, fill missing
         feat_matrix = feat_matrix.reindex(columns=proteins).fillna(0)
         

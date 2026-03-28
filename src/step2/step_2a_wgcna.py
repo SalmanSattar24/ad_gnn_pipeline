@@ -88,8 +88,15 @@ def main(data_dir, results_dir, test_mode=False):
     if not os.path.exists(master_df_path) or not os.path.exists(deconv_path):
         raise FileNotFoundError("Required Step 1 outputs missing.")
         
-    master_df = pd.read_csv(master_df_path)
+    master_df = pd.read_csv(master_df_path, index_col=0)
+    # Ensure patient_id column exists
+    if 'patient_id' not in master_df.columns:
+        master_df['patient_id'] = master_df.index
+    
     deconv_df = pd.read_csv(deconv_path)
+    # Standardize column name if it was old version
+    if 'sample_id' in deconv_df.columns:
+        deconv_df.rename(columns={'sample_id': 'patient_id'}, inplace=True)
     
     # Filter only AD subtypes (ignore NaN subtypes which are healthy/AsymAD)
     subtype_patients = master_df.dropna(subset=['subtype'])
@@ -108,8 +115,9 @@ def main(data_dir, results_dir, test_mode=False):
         logger.info(f"Processing WGCNA for {subtype}")
         st_patients = subtype_patients[subtype_patients['subtype'] == subtype]['patient_id'].values
         
-        st_deconv = deconv_df[deconv_df['sample_id'].isin(st_patients)]
+        st_deconv = deconv_df[deconv_df['patient_id'].isin(st_patients)]
         cell_types = st_deconv['cell_type'].unique()
+
         
         for ct in cell_types:
             ct_data = st_deconv[st_deconv['cell_type'] == ct]
@@ -117,7 +125,8 @@ def main(data_dir, results_dir, test_mode=False):
                 continue
                 
             # Pivot to Patients x Proteins
-            ct_matrix = ct_data.pivot(index='sample_id', columns='protein_id', values='abundance')
+            ct_matrix = ct_data.pivot(index='patient_id', columns='protein_id', values='abundance')
+
             ct_matrix.fillna(ct_matrix.mean(), inplace=True) 
             
             if test_mode:

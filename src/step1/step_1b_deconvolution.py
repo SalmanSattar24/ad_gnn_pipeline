@@ -285,7 +285,7 @@ def compute_deconvolved_profiles(bulk_df, proportions_df, reference_matrix, cell
     """
     logging.info("  Computing cell-type specific protein profiles...")
     
-    # Container for long-form data: [sample_id, protein_id, cell_type, abundance]
+    # Container for long-form data: [patient_id, protein_id, cell_type, abundance]
     data_list = []
     
     # For performance, we process in a vectorized way per cell type
@@ -302,13 +302,14 @@ def compute_deconvolved_profiles(bulk_df, proportions_df, reference_matrix, cell
         
         # Melt to long form
         ct_melted = ct_abundance.reset_index().melt(id_vars='index')
-        ct_melted.columns = ['sample_id', 'protein_id', 'abundance']
+        ct_melted.columns = ['patient_id', 'protein_id', 'abundance']
         ct_melted['cell_type'] = ct
         
         data_list.append(ct_melted)
         
     deconvolved_df = pd.concat(data_list, ignore_index=True)
     return deconvolved_df
+
 
 
 
