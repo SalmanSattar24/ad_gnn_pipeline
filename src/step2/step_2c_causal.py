@@ -31,10 +31,11 @@ def compute_grn(df_matrix, test_mode=False):
     client = None
     cluster = None
     try:
-        # Colab has limited RAM and cores
-        cluster = LocalCluster(n_workers=2, threads_per_worker=1, memory_limit='3GB')
+        # Colab has limited RAM and strict multiprocessing constraints.
+        # Using processes=False forces threading, avoiding standard Colab worker OOM/crash.
+        cluster = LocalCluster(processes=False, n_workers=1, threads_per_worker=2, memory_limit='10GB')
         client = Client(cluster)
-        logger.info("  Custom Dask LocalCluster created for GRNBoost2.")
+        logger.info("  Custom threaded Dask LocalCluster created for GRNBoost2.")
         
         network = grnboost2(expression_data=df_matrix, 
                             tf_names=proteins,
