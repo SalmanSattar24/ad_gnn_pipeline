@@ -72,20 +72,16 @@ class Step1Runner:
         start_time: Timestamp when pipeline started (for timing total execution)
     """
 
-    def __init__(self, args):
+    def __init__(self, data_dir='data', results_dir='results', test_mode=False, 
+                 skip_deconvolution=False, n_subtypes=None):
         """
-        Initialize the runner with command-line arguments and set up logging.
-
-        Args:
-            args: argparse.Namespace object with command-line arguments
+        Initialize the runner with parameters and set up logging.
         """
-        # Store command-line arguments for later use
-        self.args = args
-        self.data_dir = args.data_dir
-        self.results_dir = args.results_dir
-        self.test_mode = args.test
-        self.skip_deconvolution = args.skip_deconvolution
-        self.n_subtypes = args.n_subtypes
+        self.data_dir = data_dir
+        self.results_dir = results_dir
+        self.test_mode = test_mode
+        self.skip_deconvolution = skip_deconvolution
+        self.n_subtypes = n_subtypes
 
         # Initialize containers for execution tracking
         self.start_time = None  # Will be set when run_all() is called
@@ -546,7 +542,13 @@ Files:
     args = parser.parse_args()
 
     # Create runner instance and execute pipeline
-    runner = Step1Runner(args)
+    runner = Step1Runner(
+        data_dir=args.data_dir,
+        results_dir=args.results_dir,
+        test_mode=args.test,
+        skip_deconvolution=args.skip_deconvolution,
+        n_subtypes=args.n_subtypes
+    )
     success = runner.run_all()
 
     # Exit with appropriate status code
@@ -818,11 +820,17 @@ Files:
     )
 
     args = parser.parse_args()
-
+ 
     # Run pipeline
-    runner = Step1Runner(args)
+    runner = Step1Runner(
+        data_dir=args.data_dir,
+        results_dir=args.results_dir,
+        test_mode=args.test,
+        skip_deconvolution=args.skip_deconvolution,
+        n_subtypes=args.n_subtypes
+    )
     success = runner.run_all()
-
+ 
     # Exit with appropriate code
     sys.exit(0 if success else 1)
 
