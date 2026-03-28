@@ -3,55 +3,63 @@ import logging
 import time
 import pandas as pd
 import numpy as np
-from dask.distributed import Client, LocalCluster
-
-try:
-    from arboreto.algo import grnboost2
-except ImportError:
-    grnboost2 = None
+from sklearn.ensemble import RandomForestRegressor
+from joblib import Parallel, delayed
 
 logger = logging.getLogger('Step2C')
 
 def compute_grn(df_matrix, test_mode=False):
     """
-    Executes GRNBoost2 (fast GENIE3) to infer causal network edges.
+    Executes a pure scikit-learn GENIE3 equivalent to infer causal network edges.
+    Bypasses arboreto/dask to prevent Colab memory constraints and out-of-memory crashes.
     Returns: Edge list dataframe with top 5% edges.
     """
-    if grnboost2 is None:
-        logger.error("Arboreto missing. Cannot run Causal layer.")
-        return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
-        
     # Ensure columns are strings to prevent internal matching errors
     df_matrix.columns = df_matrix.columns.astype(str)
     proteins = list(df_matrix.columns)
+    n_features = len(proteins)
+    data = df_matrix.values
     
-    logger.info(f"Running GRNBoost2 ensemble on {df_matrix.shape} data...")
+    logger.info(f"Running GENIE3-equivalent Causal Inference ensemble on {df_matrix.shape} data...")
     
-    # Create a custom conservative Client for Colab to prevent worker OOM/crash
-    client = None
-    cluster = None
     try:
-        # Colab has limited RAM and strict multiprocessing constraints.
-        # Using processes=False forces threading, avoiding standard Colab worker OOM/crash.
-        cluster = LocalCluster(processes=False, n_workers=1, threads_per_worker=2, memory_limit='10GB')
-        client = Client(cluster)
-        logger.info("  Custom threaded Dask LocalCluster created for GRNBoost2.")
+        def fit_target(i):
+            target = data[:, i]
+            # Predict using all OTHER proteins
+            mask = np.ones(n_features, dtype=bool)
+            mask[i] = False
+            predictors = data[:, mask]
+            
+            # GENIE3 uses Random Forests to determine feature importance of predictors
+            # Limit estimators to 100 for speed on Colab (sufficient for 500 features)
+            rf = RandomForestRegressor(n_estimators=100, max_features='sqrt', n_jobs=1, random_state=42)
+            rf.fit(predictors, target)
+            
+            importances = np.zeros(n_features)
+            importances[mask] = rf.feature_importances_
+            
+            # Collect edges with meaningful weights
+            local_edges = []
+            for j in range(n_features):
+                if importances[j] > 1e-4:
+                    local_edges.append((proteins[j], proteins[i], importances[j]))
+            return local_edges
+
+        # Run massively parallel training via joblib
+        results = Parallel(n_jobs=-1)(delayed(fit_target)(i) for i in range(n_features))
         
-        network = grnboost2(expression_data=df_matrix, 
-                            tf_names=proteins,
-                            client_or_address=client)
+        edges_list = []
+        for res in results:
+            edges_list.extend(res)
+            
+        network = pd.DataFrame(edges_list, columns=['protein_A', 'protein_B', 'weight'])
+        
     except Exception as e:
-        logger.error(f"GRNBoost2 failed: {e}")
+        logger.error(f"Causal Inference failed: {e}")
         if test_mode:
             return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
         raise e
-    finally:
-        if client is not None:
-            client.close()
-        if cluster is not None:
-            cluster.close()
-
-                        
+        
     # Filter for top 5% importance scores as per Research Plan Table 2D
     n_total_edges = network.shape[0]
     n_keep = int(n_total_edges * 0.05)
