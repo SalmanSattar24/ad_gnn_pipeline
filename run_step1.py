@@ -43,9 +43,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from step1.step_1a_load_preprocess import main as step_1a_main
 from step1.step_1b_deconvolution import main as step_1b_main
 from step1.step_1c_pseudotime import main as step_1c_main
-from step1.step_1c2_asymad import main as step_1c2_main
-from step1.step_1d_nmf_clustering import main as step_1d_main
-from step1.step_1e_subtype_validation import main as step_1e_main
+from step1.step_1d_asymad import main as step_1d_main
+from step1.step_1e_nmf_clustering import main as step_1e_main
+from step1.step_1f_subtype_validation import main as step_1f_main
 
 
 class Step1Runner:
@@ -285,8 +285,8 @@ class Step1Runner:
                     skip_deconvolution=self.skip_deconvolution,
                     test_mode=self.test_mode
                 )
-            elif step_num == 4:
-                # Step 1D: NMF clustering, needs n_subtypes override
+            elif step_num == 5:
+                # Step 1E: NMF clustering, needs n_subtypes override
                 result = step_func(
                     data_dir=self.data_dir,
                     results_dir=self.results_dir,
@@ -294,7 +294,7 @@ class Step1Runner:
                     test_mode=self.test_mode
                 )
             else:
-                # Steps 1C and 1E: Use basic arguments
+                # Steps 1C, 1D, and 1F: Use basic arguments
                 result = step_func(
                     data_dir=self.data_dir,
                     results_dir=self.results_dir,
@@ -377,9 +377,9 @@ class Step1Runner:
             ("1A: Data Loading & Preprocessing", 1, step_1a_main),
             ("1B: Cell-Type Deconvolution", 2, step_1b_main),
             ("1C: Disease Pseudotime", 3, step_1c_main),
-            ("1C (Addition): AsymAD Resilience Def", 6, step_1c2_main),
-            ("1D: NMF Consensus Clustering", 4, step_1d_main),
-            ("1E: Subtype Validation", 5, step_1e_main),
+            ("1D: AsymAD Resilience Def", 4, step_1d_main),
+            ("1E: NMF Consensus Clustering", 5, step_1e_main),
+            ("1F: Subtype Validation", 6, step_1f_main),
         ]
 
         success_count = 0
@@ -434,7 +434,7 @@ class Step1Runner:
                 result = self.results[step_key]
                 status_str = result['status']
                 time_str = f"{result['time']:.1f}s"
-                step_let = chr(64+i) if i < 6 else 'C2'
+                step_let = chr(64+i)
                 self.logger.info(f"  Step 1{step_let}: {status_str:4s} ({time_str})")
 
                 # If step passed, print key metric from its result
@@ -448,11 +448,11 @@ class Step1Runner:
                     elif i == 3:
                         self.logger.info(f"        -> Pseudotime range: {result_data.get('pseudotime_min'):.3f} - "
                                        f"{result_data.get('pseudotime_max'):.3f}")
-                    # Step 1C2 (AsymAD): 
-                    elif i == 6:
-                        self.logger.info(f"        -> AsymAD instances found: {result_data.get('asymad_count')}")
-                    # Step 1D: Report number of subtypes and their sizes
+                    # Step 1D (AsymAD): 
                     elif i == 4:
+                        self.logger.info(f"        -> AsymAD instances found: {result_data.get('asymad_count')}")
+                    # Step 1E: Report number of subtypes and their sizes
+                    elif i == 5:
                         sizes = result_data.get('subtype_sizes', {})
                         sizes_str = ', '.join([f"{k}={v}" for k, v in sorted(sizes.items())])
                         self.logger.info(f"        -> k={result_data.get('n_subtypes')}: {sizes_str}")
