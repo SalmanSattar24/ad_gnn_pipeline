@@ -125,8 +125,15 @@ def main(data_dir, results_dir, test_mode=False):
     master_df_path = os.path.join(data_dir, 'processed', 'master_patient_table_final.csv')
     deconv_path = os.path.join(data_dir, 'processed', 'deconvolved_profiles.csv')
     
-    master_df = pd.read_csv(master_df_path)
+    master_df = pd.read_csv(master_df_path, index_col=0)
+    # Ensure patient_id column exists
+    if 'patient_id' not in master_df.columns:
+        master_df['patient_id'] = master_df.index
+        
     deconv_df = pd.read_csv(deconv_path)
+    # Standardize column name if it was old version
+    if 'sample_id' in deconv_df.columns:
+        deconv_df.rename(columns={'sample_id': 'patient_id'}, inplace=True)
     
     subtype_patients = master_df.dropna(subset=['subtype'])
     subtypes = subtype_patients['subtype'].unique()
@@ -141,15 +148,17 @@ def main(data_dir, results_dir, test_mode=False):
         st_patients = subtype_patients[subtype_patients['subtype'] == subtype]['patient_id'].values
         n_patients = len(st_patients)
         
-        st_deconv = deconv_df[deconv_df['sample_id'].isin(st_patients)]
+        st_deconv = deconv_df[deconv_df['patient_id'].isin(st_patients)]
         cell_types = st_deconv['cell_type'].unique()
+
         
         for ct in cell_types:
             ct_data = st_deconv[st_deconv['cell_type'] == ct]
             if len(ct_data) == 0:
                 continue
                 
-            ct_matrix = ct_data.pivot(index='sample_id', columns='protein_id', values='abundance')
+            ct_matrix = ct_data.pivot(index='patient_id', columns='protein_id', values='abundance')
+
             ct_matrix.fillna(ct_matrix.mean(), inplace=True)
             
             if test_mode:
