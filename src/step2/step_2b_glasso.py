@@ -4,42 +4,62 @@ import time
 import pandas as pd
 import numpy as np
 from sklearn.covariance import GraphicalLasso, GraphicalLassoCV
+from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings('ignore', category=UserWarning) # ignore glasso convergence warnings
 
 logger = logging.getLogger('Step2B')
 
-def compute_stars_lambda(data_matrix, n_subsamples=50, subsample_ratio=0.8, beta_star=0.05):
+def fit_single_bootstrap(indices, data_matrix, lambdas):
     """
-    Native Python implementation of StARS (Stability Approach to Regularization Selection)
-    for Graphical Lasso. Perfectly replicates the R `huge.stars` methodology.
+    Helper function for parallel bootstrap runs.
+    """
+    n_features = data_matrix.shape[1]
+    sub_data = data_matrix[indices, :]
+    
+    # Center and scale
+    sub_data = (sub_data - sub_data.mean(axis=0)) / (sub_data.std(axis=0) + 1e-8)
+    emp_cov = np.cov(sub_data, rowvar=False)
+    
+    adjs = []
+    for lam in lambdas:
+        try:
+            # High penalty/fast convergence for stability selection
+            gl = GraphicalLasso(alpha=lam, max_iter=100, assume_centered=True, tol=1e-3)
+            gl.fit(emp_cov)
+            adj = (np.abs(gl.precision_) > 1e-5).astype(float)
+            adjs.append(adj)
+        except Exception:
+            adjs.append(np.zeros((n_features, n_features)))
+            
+    return np.stack(adjs)
+
+def compute_stars_lambda(data_matrix, n_subsamples=20, subsample_ratio=0.8, beta_star=0.05):
+    """
+    Accelerated Python implementation of StARS using joblib parallelization.
     """
     n_samples, n_features = data_matrix.shape
     subsample_size = int(n_samples * subsample_ratio)
     
-    lambdas = np.logspace(0, -3, 10) # 10 lambdas from 1.0 to 0.001
+    lambdas = np.logspace(0, -2.5, 10) # 10 lambdas
     
-    edge_probs = np.zeros((len(lambdas), n_features, n_features))
+    logger.info(f"  Starting parallel StARS with {n_subsamples} subsamples...")
     
-    for i in range(n_subsamples):
-        indices = np.random.choice(n_samples, size=subsample_size, replace=False)
-        sub_data = data_matrix[indices, :]
-        
-        # Center and scale
-        sub_data = (sub_data - sub_data.mean(axis=0)) / (sub_data.std(axis=0) + 1e-8)
-        emp_cov = np.cov(sub_data, rowvar=False)
-        
-        for idx, lam in enumerate(lambdas):
-            try:
-                gl = GraphicalLasso(alpha=lam, max_iter=200, assume_centered=True)
-                gl.fit(emp_cov)
-                prec = gl.precision_
-                adj = (np.abs(prec) > 1e-5).astype(float)
-                edge_probs[idx] += adj
-            except Exception:
-                pass
-                
-    edge_probs /= n_subsamples
+    # Prepare bootstrap indices
+    bootstrap_indices = [np.random.choice(n_samples, size=subsample_size, replace=False) 
+                         for _ in range(n_subsamples)]
+    
+    # Run in parallel across all available cores
+    n_jobs = -1 # Use all cores 
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(fit_single_bootstrap)(indices, data_matrix, lambdas) 
+        for indices in bootstrap_indices
+    )
+    
+    # Aggregate edge probabilities
+    # results is list of (n_lambdas, n_features, n_features)
+    edge_probs = np.sum(results, axis=0) / n_subsamples
+    
     instabilities = 2 * edge_probs * (1 - edge_probs)
     
     # Calculate average instability per lambda for off-diagonal edges
@@ -50,17 +70,17 @@ def compute_stars_lambda(data_matrix, n_subsamples=50, subsample_ratio=0.8, beta
         instab_matrix = instabilities[idx]
         avg_instability[idx] = np.mean(instab_matrix[mask])
         
-    # Start from largest lambda (most sparse, instability ~ 0) and go down
-    # until instability exceeds beta_star.
+    # Selected lambda: largest lambda s.t. instability <= beta_star
     selected_lambda = lambdas[0]
     for lam, instab in zip(lambdas, avg_instability):
         if instab <= beta_star:
             selected_lambda = lam
         else:
-            break # past the threshold
+            break
 
-    logger.info(f"StARS selected lambda: {selected_lambda:.4f}")
+    logger.info(f"  StARS selected lambda: {selected_lambda:.4f} (Instability: {instab:.4f})")
     return selected_lambda
+
 
 def run_glasso(df_matrix, n_patients, test_mode=False):
     """
@@ -94,7 +114,8 @@ def run_glasso(df_matrix, n_patients, test_mode=False):
     else:
         logger.info(f"Using StARS Bootstrapping (N={n_patients})")
         method_used = "StARS"
-        lam = compute_stars_lambda(data, n_subsamples=50)
+        lam = compute_stars_lambda(data, n_subsamples=20)
+
         gl = GraphicalLasso(alpha=lam, max_iter=200)
         gl.fit(emp_cov)
         prec = gl.precision_
