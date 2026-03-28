@@ -19,22 +19,17 @@ def fit_single_bootstrap(indices, data_matrix, lambdas):
     
     # Center and scale
     sub_data = (sub_data - sub_data.mean(axis=0)) / (sub_data.std(axis=0) + 1e-8)
-    emp_cov = np.cov(sub_data, rowvar=False)
-    
-    # Add small diagonal regularization to ensure the matrix is well-conditioned
-    # (Tikhonov regularization / Ridge penalty)
-    emp_cov += np.eye(n_features) * 1e-4
     
     adjs = []
-
     for lam in lambdas:
         try:
             # High penalty/fast convergence for stability selection
-            gl = GraphicalLasso(alpha=lam, max_iter=100, assume_centered=True, tol=1e-3)
-            gl.fit(emp_cov)
+            gl = GraphicalLasso(alpha=lam, max_iter=100, tol=1e-3)
+            # IMPORTANT: fit() expects data 'X', not 'emp_cov'
+            gl.fit(sub_data)
             adj = (np.abs(gl.precision_) > 1e-5).astype(float)
             adjs.append(adj)
-        except Exception:
+        except Exception as e:
             adjs.append(np.zeros((n_features, n_features)))
             
     return np.stack(adjs)
@@ -98,36 +93,56 @@ def run_glasso(df_matrix, n_patients, test_mode=False):
         
     data = df_matrix.values
     data = (data - data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
-    emp_cov = np.cov(data, rowvar=False)
-    
-    # Add small diagonal regularization for numerical stability
-    emp_cov += np.eye(emp_cov.shape[0]) * 1e-4
     
     method_used = ""
-
     # According to plan:
     # >= 70 : Extended BIC / CV
     # 40-69 : StARS
+    
+    success = False
     if test_mode:
         logger.info(f"Using fixed lambda for TEST MODE (N={n_patients})")
         method_used = "TestFixed"
-        gl = GraphicalLasso(alpha=0.5, max_iter=20)
-        gl.fit(emp_cov)
-        prec = gl.precision_
+        gl = GraphicalLasso(alpha=0.5, max_iter=50)
+        try:
+            gl.fit(data)
+            prec = gl.precision_
+            success = True
+        except Exception as e:
+            logger.error(f"Test GLASSO failed: {e}")
+            
     elif n_patients >= 70:
         logger.info(f"Using GraphicalLassoCV (N={n_patients} >= 70)")
         method_used = "CV"
         gl = GraphicalLassoCV(cv=5, max_iter=200)
-        gl.fit(data)
-        prec = gl.precision_
+        try:
+            gl.fit(data)
+            prec = gl.precision_
+            success = True
+        except Exception as e:
+            logger.error(f"GraphicalLassoCV failed: {e}")
+            
     else:
         logger.info(f"Using StARS Bootstrapping (N={n_patients})")
         method_used = "StARS"
         lam = compute_stars_lambda(data, n_subsamples=20)
 
-        gl = GraphicalLasso(alpha=lam, max_iter=200)
-        gl.fit(emp_cov)
-        prec = gl.precision_
+        # Robust fit: if the selected lambda is still slightly ill-conditioned, we can increase it
+        for fallback_lam in [lam, lam * 1.5, lam * 2.0, 0.1]:
+            try:
+                gl = GraphicalLasso(alpha=fallback_lam, max_iter=200, tol=1e-3)
+                gl.fit(data)
+                prec = gl.precision_
+                success = True
+                if fallback_lam != lam:
+                    logger.info(f"  Increased fallback lambda to {fallback_lam:.4f} for stability")
+                break
+            except Exception as e:
+                continue
+                
+    if not success:
+        logger.warning(f"  GraphicalLasso failed to converge. Yielding empty network.")
+        return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
         
     # Extract edges from precision matrix
     # Non-zero precision elements imply conditional dependence
