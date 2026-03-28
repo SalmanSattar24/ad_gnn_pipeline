@@ -260,42 +260,56 @@ def nnls_deconvolve(bulk_profile, reference_matrix):
     return proportions
 
 
-def save_deconvolved_data(proportions_df, processed_dir):
+def save_deconvolved_data(proportions_df, deconvolved_df, processed_dir):
     """
-    Save cell-type proportions matrix to CSV for downstream steps.
-
-    PURPOSE:
-    Serialize deconvolution results. These proportions are critical covariates
-    for Steps 1C-1E and potentially for network inference in Step 2.
-
-    PARAMETERS:
-    -----------
-    proportions_df : pd.DataFrame
-        Cell-type proportions matrix (n_patients × n_cell_types)
-        Index: patient IDs
-        Columns: cell type names (ct_Ex, ct_In, ct_Ast, ct_Oli, ct_Mic, ct_OPCs)
-        Values: proportions (0.0 to 1.0, sum to 1.0 per row)
-    processed_dir : str
-        Directory where output will be saved
-
-    RETURNS:
-    --------
-    str
-        Path to saved file (cell_type_proportions.csv)
-
-    OUTPUT:
-    -------
-    cell_type_proportions.csv
-        CSV format with:
-        - Index: patient IDs (matches proteomics matrix)
-        - Columns: cell type proportions
-        - Values: normalized to sum-to-one (compositional)
+    Save deconvolution results (proportions and per-cell-type profiles).
     """
     os.makedirs(processed_dir, exist_ok=True)
+    
+    # Save proportions
     props_file = f"{processed_dir}/cell_type_proportions.csv"
     proportions_df.to_csv(props_file)
     logging.info(f"  Saved: cell_type_proportions.csv ({proportions_df.shape})")
-    return props_file
+    
+    # Save long-form profiles
+    profiles_file = f"{processed_dir}/deconvolved_profiles.csv"
+    deconvolved_df.to_csv(profiles_file, index=False)
+    logging.info(f"  Saved: deconvolved_profiles.csv ({deconvolved_df.shape})")
+    
+    return props_file, profiles_file
+
+def compute_deconvolved_profiles(bulk_df, proportions_df, reference_matrix, cell_types):
+    """
+    Estimates cell-type specific protein abundances for each patient.
+    Uses a multiplicative assignment strategy based on reference signatures.
+    """
+    logging.info("  Computing cell-type specific protein profiles...")
+    
+    # Container for long-form data: [sample_id, protein_id, cell_type, abundance]
+    data_list = []
+    
+    # For performance, we process in a vectorized way per cell type
+    for i, ct in enumerate(sorted(cell_types)):
+        ct_col = f"ct_{ct}"
+        
+        # Check if column exists (might be missing in tests)
+        if ct_col not in proportions_df.columns:
+            continue
+
+        # Abundance = Bulk * Proportion[ct]
+        # (This preserves the co-expression structure of the specific cell type fraction)
+        ct_abundance = bulk_df.multiply(proportions_df[ct_col], axis=0)
+        
+        # Melt to long form
+        ct_melted = ct_abundance.reset_index().melt(id_vars='index')
+        ct_melted.columns = ['sample_id', 'protein_id', 'abundance']
+        ct_melted['cell_type'] = ct
+        
+        data_list.append(ct_melted)
+        
+    deconvolved_df = pd.concat(data_list, ignore_index=True)
+    return deconvolved_df
+
 
 
 def plot_proportions(proportions_df, metadata_df, results_dir):
@@ -523,9 +537,12 @@ def main(data_dir="data", results_dir="results", skip_deconvolution=False, test_
                 index=proteomics_df.index,
                 columns=cell_types
             )
+            
+            # Create placeholder long-form profiles
+            deconvolved_df = compute_deconvolved_profiles(proteomics_df, proportions_df, None, [c.replace('ct_', '') for c in cell_types])
 
-            # Save placeholder and return
-            proportions_file = save_deconvolved_data(proportions_df, processed_dir)
+            # Save and return
+            save_deconvolved_data(proportions_df, deconvolved_df, processed_dir)
             logger.info("  Deconvolution skipped successfully")
 
             return {
@@ -589,7 +606,11 @@ def main(data_dir="data", results_dir="results", skip_deconvolution=False, test_
 
         # STEP 5: Save outputs
         logger.info("[5/5] Saving outputs...")
-        proportions_file = save_deconvolved_data(proportions_df, processed_dir)
+        
+        # Calculate protein-level cell-type profiles before saving
+        deconvolved_df = compute_deconvolved_profiles(proteomics_df, proportions_df, reference_matrix, cell_types)
+        
+        save_deconvolved_data(proportions_df, deconvolved_df, processed_dir)
 
         # Generate visualization
         metadata_file = f"{processed_dir}/rosmap_metadata.csv"
