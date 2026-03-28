@@ -13,3 +13,6 @@ lifelines>=0.29.0
 gseapy>=1.1.0
 statsmodels>=0.14.0
 adjustText>=0.7.3
+arboreto>=0.1.6
+networkx>=3.1
+requests>=2.31.0
