@@ -3,6 +3,7 @@ import logging
 import time
 import pandas as pd
 import numpy as np
+from dask.distributed import Client, LocalCluster
 
 try:
     from arboreto.algo import grnboost2
@@ -20,21 +21,35 @@ def compute_grn(df_matrix, test_mode=False):
         logger.error("Arboreto missing. Cannot run Causal layer.")
         return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
         
+    # Ensure columns are strings to prevent internal matching errors
+    df_matrix.columns = df_matrix.columns.astype(str)
     proteins = list(df_matrix.columns)
     
-    # Run GRNBoost2
-    # arboreto expects index=samples, columns=genes
     logger.info(f"Running GRNBoost2 ensemble on {df_matrix.shape} data...")
     
+    # Create a custom conservative Client for Colab to prevent worker OOM/crash
+    client = None
+    cluster = None
     try:
+        # Colab has limited RAM and cores
+        cluster = LocalCluster(n_workers=2, threads_per_worker=1, memory_limit='3GB')
+        client = Client(cluster)
+        logger.info("  Custom Dask LocalCluster created for GRNBoost2.")
+        
         network = grnboost2(expression_data=df_matrix, 
-                            tf_names=proteins)
+                            tf_names=proteins,
+                            client_or_address=client)
     except Exception as e:
         logger.error(f"GRNBoost2 failed: {e}")
-        # Return empty df as fallback in test mode to allow pipeline to continue
         if test_mode:
             return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
         raise e
+    finally:
+        if client is not None:
+            client.close()
+        if cluster is not None:
+            cluster.close()
+
                         
     # Filter for top 5% importance scores as per Research Plan Table 2D
     n_total_edges = network.shape[0]
