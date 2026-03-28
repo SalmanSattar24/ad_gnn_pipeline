@@ -21,7 +21,12 @@ def fit_single_bootstrap(indices, data_matrix, lambdas):
     sub_data = (sub_data - sub_data.mean(axis=0)) / (sub_data.std(axis=0) + 1e-8)
     emp_cov = np.cov(sub_data, rowvar=False)
     
+    # Add small diagonal regularization to ensure the matrix is well-conditioned
+    # (Tikhonov regularization / Ridge penalty)
+    emp_cov += np.eye(n_features) * 1e-4
+    
     adjs = []
+
     for lam in lambdas:
         try:
             # High penalty/fast convergence for stability selection
@@ -95,7 +100,11 @@ def run_glasso(df_matrix, n_patients, test_mode=False):
     data = (data - data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
     emp_cov = np.cov(data, rowvar=False)
     
+    # Add small diagonal regularization for numerical stability
+    emp_cov += np.eye(emp_cov.shape[0]) * 1e-4
+    
     method_used = ""
+
     # According to plan:
     # >= 70 : Extended BIC / CV
     # 40-69 : StARS
