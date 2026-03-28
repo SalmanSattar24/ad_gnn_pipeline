@@ -98,7 +98,7 @@ def main(data_dir, results_dir, test_mode=False):
                 edges['subtype'] = subtype
                 edges['cell_type'] = ct
                 
-                out_file = f"{subtype}_{ct}_causal_edges.csv"
+                out_file = f"{subtype}_ct_{ct}_causal_edges.csv"
                 edges.to_csv(os.path.join(output_dir, out_file), index=False)
                 edges_retained += len(edges)
                 generated_networks.append(f"{subtype}-{ct}")

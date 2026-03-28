@@ -128,13 +128,15 @@ def main(data_dir, results_dir, test_mode=False):
             tom_df = compute_tom(ct_matrix, test_mode=test_mode)
             
             # Filter TOM > 0.1 (Research Plan threshold)
-            # Create edgelist
+            # In test mode, lower threshold to 0.01 for plumbing verification
             tom_df.values[np.tril_indices_from(tom_df)] = 0 # keep upper triangle
             tom_df.index.name = 'protein_A'
             tom_df.columns.name = 'protein_B'
             edges = tom_df.unstack().reset_index()
             edges.columns = ['protein_A', 'protein_B', 'weight']
-            edges = edges[edges['weight'] > 0.1]
+            
+            thresh = 0.01 if test_mode else 0.1
+            edges = edges[edges['weight'] > thresh]
             edges = edges[edges['protein_A'] != edges['protein_B']]
             
             if len(edges) > 0:
@@ -143,7 +145,7 @@ def main(data_dir, results_dir, test_mode=False):
                 edges['layer'] = 'wgcna'
                 edges['consensus_weight'] = 0.30
                 
-                out_file = f"{subtype}_{ct}_wgcna_edges.csv"
+                out_file = f"{subtype}_ct_{ct}_wgcna_edges.csv"
                 edges.to_csv(os.path.join(output_dir, out_file), index=False)
                 edges_retained += len(edges)
                 generated_networks.append(f"{subtype}-{ct}")
