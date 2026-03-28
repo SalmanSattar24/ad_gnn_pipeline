@@ -161,11 +161,20 @@ def main(data_dir, results_dir, test_mode=False):
 
             ct_matrix.fillna(ct_matrix.mean(), inplace=True)
             
+            # Optimization: GLASSO is O(P^3). For 5000 proteins, this will never finish.
+            # We filter for the top 500 most variable proteins per cell type.
+            if not test_mode and ct_matrix.shape[1] > 500:
+                variances = ct_matrix.var().sort_values(ascending=False)
+                top_500 = variances.index[:500]
+                ct_matrix = ct_matrix[top_500]
+                logger.info(f"  Optimizing: filtered to top 500 proteins by variance for GLASSO")
+
             if test_mode:
                 ct_matrix = ct_matrix.iloc[:, :15]
             
-            logger.info(f"Running GLASSO for {subtype} | {ct} (N={n_patients})")
+            logger.info(f"Running GLASSO for {subtype} | {ct} (N={n_patients}, P={ct_matrix.shape[1]})")
             edges = run_glasso(ct_matrix, n_patients, test_mode=test_mode)
+
             
             if len(edges) > 0:
                 edges['subtype'] = subtype

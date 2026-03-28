@@ -95,13 +95,23 @@ def main(data_dir, results_dir, test_mode=False):
 
             ct_matrix.fillna(ct_matrix.mean(), inplace=True)
             
+            # Optimization: Causal inference on 5000 proteins is extremely slow.
+            # We filter for the top 500 most variable proteins per cell type.
+            if not test_mode and ct_matrix.shape[1] > 500:
+                variances = ct_matrix.var().sort_values(ascending=False)
+                # Keep top 500 most variable proteins for high-signal causal modeling
+                top_500 = variances.index[:500]
+                ct_matrix = ct_matrix[top_500]
+                logger.info(f"  Optimizing: filtered to top 500 proteins by variance for Causal Inference")
+
             if test_mode:
-                # Use only top 15 proteins to speed up test execution and stabilize dask
+                # Use only top 15 proteins for fast test mode
                 cols = ct_matrix.columns[:15]
                 ct_matrix = ct_matrix[cols]
                 
-            logger.info(f"Running Causal Inference for {subtype} | {ct}")
+            logger.info(f"Running Causal Inference for {subtype} | {ct} (P={ct_matrix.shape[1]})")
             edges = compute_grn(ct_matrix, test_mode=test_mode)
+
             
             if len(edges) > 0:
                 edges['subtype'] = subtype
