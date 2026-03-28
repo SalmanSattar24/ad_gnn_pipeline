@@ -102,9 +102,11 @@ def load_data_for_clustering(processed_dir):
     master_file = f"{processed_dir}/master_patient_table.csv"
     master_df = pd.read_csv(master_file, index_col=0)
 
-    # Filter to disease patients (exclude controls)
-    # Disease stratification is more relevant than control heterogeneity
-    if 'diagnosis' in master_df.columns:
+    # Filter to Clinical AD patients ONLY (exclude Healthy Control and AsymAD)
+    if 'patient_class' in master_df.columns:
+        ad_mask = master_df['patient_class'] == 'Clinical AD'
+        master_df = master_df[ad_mask]
+    elif 'diagnosis' in master_df.columns:
         ad_mask = master_df['diagnosis'] != 'Control'
         master_df = master_df[ad_mask]
 
@@ -459,8 +461,7 @@ def save_subtypes(labels, proteomics_df, processed_dir):
     # Add subtype assignments to AD/MCI patients
     master_df.loc[proteomics_df.index, 'subtype'] = subtype_labels
 
-    # Add 'Control' label for control patients (not in clustering)
-    master_df.loc[master_df['subtype'].isna(), 'subtype'] = 'Control'
+    # Leave non-AD patients (Controls, AsymAD) with NaN subtype per V3 design
 
     # Save final master table
     master_final_file = f"{processed_dir}/master_patient_table_final.csv"

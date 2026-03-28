@@ -128,11 +128,43 @@ def setup_synthetic_data(raw_data_dir, n_patients=180, n_proteins=5000, test_mod
 
     # Generate synthetic clinical metadata
     diagnoses = np.random.choice(['Control', 'AD'], size=n_patients, p=[0.55, 0.45])
+    
+    # Initialize arrays for new clinical variables
+    braaksc = np.zeros(n_patients, dtype=int)
+    ceradsc = np.zeros(n_patients, dtype=int)
+    mmse = np.zeros(n_patients, dtype=int)
+    cogdx = np.zeros(n_patients, dtype=int)
+    
+    for i, diag in enumerate(diagnoses):
+        if diag == 'AD':
+            braaksc[i] = np.random.randint(4, 7)    # 4, 5, 6
+            ceradsc[i] = np.random.randint(3, 5)    # 3, 4 (moderate, severe)
+            mmse[i] = np.random.randint(5, 25)      # impaired
+            cogdx[i] = np.random.choice([2, 3])     # 2 (MCI) or 3 (Dementia)
+        else:
+            # Control. Let's make ~25% of controls AsymAD
+            if np.random.rand() < 0.25:
+                # AsymAD profile: cognitively normal, but high pathology
+                braaksc[i] = np.random.randint(3, 7) # >= 3
+                ceradsc[i] = np.random.randint(3, 5) # >= 3
+                mmse[i] = np.random.randint(26, 31)  # normal
+                cogdx[i] = 1                         # normal
+            else:
+                # Healthy profile
+                braaksc[i] = np.random.randint(0, 3) # 0, 1, 2
+                ceradsc[i] = np.random.randint(1, 3) # 1, 2
+                mmse[i] = np.random.randint(28, 31)
+                cogdx[i] = 1
+
     metadata_data = {
         'diagnosis': diagnoses,
         'age_death': np.random.randint(60, 100, n_patients),
         'msex': np.random.choice([0, 1], n_patients),  # 0=Female, 1=Male
-        'pmi': np.random.uniform(2, 30, n_patients)    # Post-mortem interval in hours
+        'pmi': np.random.uniform(2, 30, n_patients),   # Post-mortem interval in hours
+        'braaksc': braaksc,
+        'ceradsc': ceradsc,
+        'mmse': mmse,
+        'cogdx': cogdx
     }
 
     metadata_df = pd.DataFrame(metadata_data, index=patient_ids)

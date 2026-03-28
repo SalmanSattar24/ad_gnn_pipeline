@@ -122,7 +122,7 @@ def prepare_survival_data(master_df):
       - Braak ≥ 4 = advanced AD neuropathology
       - MMSE < 20 = severe cognitive impairment
     """
-    survival_df = master_df[master_df['subtype'] != 'Control'].copy()
+    survival_df = master_df[master_df['subtype'].notna()].copy()
 
     # Create time variable (inverted pseudotime: higher pseudotime → lower T)
     if 'dpt_pseudotime' in survival_df.columns:
@@ -183,7 +183,7 @@ def label_subtypes_by_celltype(master_df):
     ct_names = [col.replace('ct_', '') for col in ct_cols]
 
     # For each non-control subtype
-    for subtype in sorted([s for s in master_df['subtype'].unique() if s != 'Control']):
+    for subtype in sorted([s for s in master_df['subtype'].dropna().unique()]):
         subtype_data = master_df[master_df['subtype'] == subtype]
         n_patients = len(subtype_data)
 
@@ -261,7 +261,7 @@ def analyze_clinical_differences(master_df, subtype_labels):
     Low p-value (p < 0.05): significant differences between subtypes
     This validates that proteome subtypes → clinical heterogeneity
     """
-    subtypes = [s for s in master_df['subtype'].unique() if s != 'Control']
+    subtypes = [s for s in master_df['subtype'].dropna().unique()]
 
     clinical_cols = ['mmse', 'braaksc', 'ceradsc']
     results = {}
@@ -344,7 +344,7 @@ def plot_composite_figure(master_df, results_dir):
     # Panel B: UMAP by subtype
     ax_b = fig.add_subplot(gs[0, 1])
     if 'umap_1' in master_df.columns:
-        subtypes = master_df['subtype'].unique()
+        subtypes = master_df['subtype'].dropna().unique()
         colors = plt.cm.Set3(np.linspace(0, 1, len(subtypes)))
         color_map = {st: colors[i] for i, st in enumerate(subtypes)}
 
@@ -362,7 +362,7 @@ def plot_composite_figure(master_df, results_dir):
     ax_c = fig.add_subplot(gs[1, 0])
     ct_cols = [col for col in master_df.columns if col.startswith('ct_')]
     if ct_cols:
-        subtype_list = sorted([s for s in master_df['subtype'].unique() if s != 'Control'])
+        subtype_list = sorted([s for s in master_df['subtype'].dropna().unique()])
         if subtype_list:
             mean_props = np.array([master_df[master_df['subtype'] == st][ct_cols].mean().values
                                   for st in subtype_list])
@@ -383,7 +383,7 @@ def plot_composite_figure(master_df, results_dir):
     # Panel D: MMSE by subtype
     ax_d = fig.add_subplot(gs[1, 1])
     if 'mmse' in master_df.columns:
-        subtype_list = sorted([s for s in master_df['subtype'].unique() if s != 'Control'])
+        subtype_list = sorted([s for s in master_df['subtype'].dropna().unique()])
         if subtype_list:
             clinical_data = [master_df[master_df['subtype'] == st]['mmse'].dropna().values
                            for st in subtype_list]
@@ -420,7 +420,7 @@ def generate_summary_report(master_df, subtype_labels, clinical_results, results
     """Generate text summary report."""
     os.makedirs(results_dir, exist_ok=True)
 
-    subtype_list = [s for s in sorted(master_df['subtype'].unique()) if s != 'Control']
+    subtype_list = sorted([s for s in master_df['subtype'].dropna().unique()])
 
     report = f"""
 ================================================================================
@@ -431,8 +431,8 @@ Summary Report
 1. SUBTYPE DISCOVERY
    Method: NMF consensus clustering on AD/MCI patient cohort
    Number of subtypes: {len(subtype_list)}
-   AD/MCI patients clustered: {len(master_df[master_df['subtype'] != 'Control'])}
-   Control patients (reference): {len(master_df[master_df['subtype'] == 'Control'])}
+   AD/MCI patients clustered: {len(master_df[master_df['subtype'].notna()])}
+   Non-clustered patients: {len(master_df[master_df['subtype'].isna()])}
 
 2. SAMPLE SIZES PER SUBTYPE
 """
@@ -616,11 +616,11 @@ def main(data_dir="data", results_dir="results", test_mode=False):
         logger.info("="*70)
 
         # Prepare results
-        subtype_list = [s for s in master_df['subtype'].unique() if s != 'Control']
+        subtype_list = [s for s in master_df['subtype'].dropna().unique()]
 
         return {
             'n_subtypes': len(subtype_list),
-            'n_control': len(master_df[master_df['subtype'] == 'Control']),
+            'n_control': len(master_df[master_df['subtype'].isna()]),
             'subtype_list': subtype_list,
             'status': 'PASS'
         }
