@@ -60,22 +60,21 @@ def compute_grn(df_matrix, test_mode=False):
             return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
         raise e
         
-    # Filter for top 5% importance scores as per Research Plan Table 2D
+    # Filter for top 5% weight scores as per Research Plan Table 2D
     n_total_edges = network.shape[0]
     n_keep = int(n_total_edges * 0.05)
     
     if n_keep == 0:
         return pd.DataFrame(columns=['protein_A', 'protein_B', 'weight'])
         
-    network_top = network.sort_values(by='importance', ascending=False).head(n_keep)
-    
-    edges = network_top.copy()
-    edges.rename(columns={'TF': 'protein_A', 'target': 'protein_B', 'importance': 'weight'}, inplace=True)
+    edges = network.sort_values(by='weight', ascending=False).head(n_keep).copy()
     
     edges['layer'] = 'causal'
     edges['consensus_weight'] = 0.35
     
     return edges
+        
+
 
 def main(data_dir, results_dir, test_mode=False):
     start_time = time.time()
