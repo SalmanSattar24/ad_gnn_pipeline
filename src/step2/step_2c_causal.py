@@ -31,8 +31,9 @@ def compute_grn(df_matrix, test_mode=False):
             predictors = data[:, mask]
             
             # GENIE3 uses Random Forests to determine feature importance of predictors
-            # Limit estimators to 100 for speed on Colab (sufficient for 500 features)
-            rf = RandomForestRegressor(n_estimators=100, max_features='sqrt', n_jobs=1, random_state=42)
+            # In test_mode use 10 trees (just enough to test code path); full runs use 100
+            n_estimators = 10 if test_mode else 100
+            rf = RandomForestRegressor(n_estimators=n_estimators, max_features='sqrt', n_jobs=1, random_state=42)
             rf.fit(predictors, target)
             
             importances = np.zeros(n_features)
@@ -106,6 +107,10 @@ def main(data_dir, results_dir, test_mode=False):
         
         st_deconv = deconv_df[deconv_df['patient_id'].isin(st_patients)]
         cell_types = st_deconv['cell_type'].unique()
+        
+        # In test_mode, only process one cell type to validate the plumbing quickly
+        if test_mode:
+            cell_types = cell_types[:1]
 
         
         for ct in cell_types:
@@ -128,8 +133,8 @@ def main(data_dir, results_dir, test_mode=False):
                 logger.info(f"  Optimizing: filtered to top 500 proteins by variance for Causal Inference")
 
             if test_mode:
-                # Use only top 15 proteins for fast test mode
-                cols = ct_matrix.columns[:15]
+                # Use only 5 proteins for fast test mode (plumbing check only)
+                cols = ct_matrix.columns[:5]
                 ct_matrix = ct_matrix[cols]
                 
             logger.info(f"Running Causal Inference for {subtype} | {ct} (P={ct_matrix.shape[1]})")

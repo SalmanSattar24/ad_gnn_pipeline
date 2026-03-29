@@ -117,6 +117,10 @@ def main(data_dir, results_dir, test_mode=False):
         
         st_deconv = deconv_df[deconv_df['patient_id'].isin(st_patients)]
         cell_types = st_deconv['cell_type'].unique()
+        
+        # In test_mode, only process the first cell type to validate the plumbing
+        if test_mode:
+            cell_types = cell_types[:1]
 
         
         for ct in cell_types:
@@ -130,8 +134,8 @@ def main(data_dir, results_dir, test_mode=False):
             ct_matrix.fillna(ct_matrix.mean(), inplace=True) 
             
             if test_mode:
-                # Use very few proteins to ensure speed across all layers
-                ct_matrix = ct_matrix.iloc[:, :15]
+                # Use very few proteins to ensure speed across all layers (10 is enough to test plumbing)
+                ct_matrix = ct_matrix.iloc[:, :10]
             
             # WGCNA execution
             tom_df = compute_tom(ct_matrix, test_mode=test_mode)

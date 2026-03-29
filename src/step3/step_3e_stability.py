@@ -24,10 +24,12 @@ def run_stability_protocol(data_list, proteins, device, n_seeds=30, test_mode=Fa
     Orchestrates the 30-seed bootstrap stability protocol.
     """
     if test_mode:
-        n_seeds = 3 # Fast test
-        epochs = 5
+        n_seeds = 2   # Fast: just verify the training loop runs
+        epochs = 3    # Fast: just verify forward/backward pass works
+        top_k = 5     # Smaller top-k set
     else:
         epochs = 50
+        top_k = 20
         
     all_top_20 = []
     all_auroc = []
@@ -66,9 +68,9 @@ def run_stability_protocol(data_list, proteins, device, n_seeds=30, test_mode=Fa
         # Explain
         importance = explain_predictions(model, val_loader, device)
         
-        # Extract Top 20
-        top_indices = np.argsort(importance)[-20:]
-        top_proteins = [proteins[idx] for idx in top_indices]
+        # Extract Top proteins
+        top_indices = np.argsort(importance)[-top_k:]
+        top_proteins = [proteins[idx] for idx in top_indices if idx < len(proteins)]
         all_top_20.append(top_proteins)
         
     # Calculate Pairwise Jaccard

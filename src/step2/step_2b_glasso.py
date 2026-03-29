@@ -195,6 +195,10 @@ def main(data_dir, results_dir, test_mode=False):
         
         st_deconv = deconv_df[deconv_df['patient_id'].isin(st_patients)]
         cell_types = st_deconv['cell_type'].unique()
+        
+        # In test_mode, only process one cell type to validate the plumbing quickly
+        if test_mode:
+            cell_types = cell_types[:1]
 
         
         for ct in cell_types:
@@ -215,7 +219,8 @@ def main(data_dir, results_dir, test_mode=False):
                 logger.info(f"  Optimizing: filtered to top 500 proteins by variance for GLASSO")
 
             if test_mode:
-                ct_matrix = ct_matrix.iloc[:, :15]
+                # Use tiny matrix (5 proteins) for fast plumbing check
+                ct_matrix = ct_matrix.iloc[:, :5]
             
             logger.info(f"Running GLASSO for {subtype} | {ct} (N={n_patients}, P={ct_matrix.shape[1]})")
             edges = run_glasso(ct_matrix, n_patients, test_mode=test_mode)
