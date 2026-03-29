@@ -1,16 +1,22 @@
-# Core scientific stack
-# NOTE: No upper-bound pins on numpy/pandas/scipy/sklearn.
-# Colab already ships compatible versions. Pinning older versions causes
-# C-ABI binary incompatibility (numpy.dtype size mismatch crash).
+# ==============================================================================
+# Alzheimer's GNN Pipeline — Colab-Compatible Requirements
+#
+# STRATEGY: Do NOT touch numpy/scipy/pandas/scikit-learn.
+# Colab ships these pre-installed and pre-compiled as a matched set.
+# Any upgrade or downgrade breaks C-ABI compatibility.
+# We install only the packages Colab does NOT ship by default.
+# ==============================================================================
+
+# Visualization (Colab has these but some need upgrades)
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
-# Single-cell / omics
+# Single-cell / omics (NOT in Colab by default)
 scanpy>=1.9.0
 anndata>=0.9.0
 umap-learn>=0.5.0
 
-# Bioinformatics utilities
+# Bioinformatics (NOT in Colab by default)
 synapseclient>=3.1.0
 PyWGCNA>=0.1.0
 lifelines>=0.29.0
@@ -23,12 +29,16 @@ arboreto>=0.1.6
 networkx>=3.1
 requests>=2.31.0
 
-# Deep learning
-torch>=2.0.0
+# Deep learning (Colab ships torch already; torch-geometric and captum are missing)
 torch-geometric>=2.3.0
 captum>=0.6.0
 
-# Misc utilities
+# Misc
 optuna>=3.2.0
 psutil>=5.9.0
 tqdm>=4.65.0
+
+# ==============================================================================
+# Packages Colab already has — DO NOT list them here as pip will upgrade them:
+#   numpy, pandas, scipy, scikit-learn, torch, matplotlib (base)
+# ==============================================================================
