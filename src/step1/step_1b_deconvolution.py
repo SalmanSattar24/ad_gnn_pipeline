@@ -301,7 +301,13 @@ def compute_deconvolved_profiles(bulk_df, proportions_df, reference_matrix, cell
         ct_abundance = bulk_df.multiply(proportions_df[ct_col], axis=0)
         
         # Melt to long form
-        ct_melted = ct_abundance.reset_index().melt(id_vars='index')
+        # After reset_index() the index becomes a column whose name matches
+        # the original index name (e.g. 'sample_id', 'patient_id', or 0 for
+        # a RangeIndex).  We must capture that name dynamically — hardcoding
+        # 'index' causes a KeyError when the index has any other name.
+        ct_reset = ct_abundance.reset_index()
+        index_col = ct_reset.columns[0]   # always the promoted-index column
+        ct_melted = ct_reset.melt(id_vars=index_col)
         ct_melted.columns = ['patient_id', 'protein_id', 'abundance']
         ct_melted['cell_type'] = ct
         
