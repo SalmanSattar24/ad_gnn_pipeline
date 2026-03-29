@@ -65,6 +65,7 @@ import seaborn as sns
 from scipy.stats import kruskal, mannwhitneyu
 import warnings
 import os
+import json
 import logging
 
 warnings.filterwarnings('ignore')
@@ -416,7 +417,16 @@ def plot_composite_figure(master_df, results_dir):
     logging.info(f"  Saved: step1_main_figure.png")
 
 
-def generate_summary_report(master_df, subtype_labels, clinical_results, results_dir):
+def load_deconvolution_validation(processed_dir):
+    """Load deconvolution validation JSON if it exists."""
+    val_file = f"{processed_dir}/deconvolution_validation.json"
+    if os.path.exists(val_file):
+        with open(val_file, 'r') as f:
+            return json.load(f)
+    return None
+
+
+def generate_summary_report(master_df, subtype_labels, clinical_results, deconv_val, results_dir):
     """Generate text summary report."""
     os.makedirs(results_dir, exist_ok=True)
 
@@ -458,7 +468,16 @@ Summary Report
         report += f"   {measure}: p={result['pval']:.2e}\n"
 
     report += f"""
-5. OUTPUTS GENERATED
+5. DECONVOLUTION VALIDATION (LAYER A)
+"""
+    if deconv_val:
+        for ct, res in deconv_val.items():
+            report += f"   {ct:5s}: Purity={res['purity']:.1%} | Status={res['status']}\n"
+    else:
+        report += "   Validation data not found.\n"
+
+    report += f"""
+6. OUTPUTS GENERATED
    - subtype_labels.csv
    - master_patient_table_final.csv
    - survival_curves.png
@@ -608,7 +627,8 @@ def main(data_dir="data", results_dir="results", test_mode=False):
 
         # STEP 7: Generate summary report
         logger.info("[7/7] Generating summary report...")
-        generate_summary_report(master_df, subtype_labels, clinical_results, results_1_dir)
+        deconv_val = load_deconvolution_validation(processed_dir)
+        generate_summary_report(master_df, subtype_labels, clinical_results, deconv_val, results_1_dir)
 
         # Print completion banner
         logger.info("="*70)

@@ -60,8 +60,20 @@ import scanpy as sc
 import warnings
 import os
 import logging
+import json
 
 warnings.filterwarnings('ignore')
+
+# Canonical Marker Proteins for Brain Cell Types
+# Used for deconvolution validation (Layer A in Research Plan)
+CANONICAL_MARKERS = {
+    'Ex':  ['SLC17A7', 'CAMK2A', 'MAP2', 'GRIN1'],       # Excitatory Neurons
+    'In':  ['GAD1', 'GAD2', 'SLC32A1', 'PVALB'],       # Inhibitory Neurons
+    'Ast': ['GFAP', 'ALDH1L1', 'SLC1A3', 'S100B'],     # Astrocytes
+    'Oli': ['MBP', 'PLP1', 'MAG', 'MOG'],              # Oligodendrocytes
+    'Mic': ['TMEM119', 'AIF1', 'P2RY12', 'CD68'],      # Microglia
+    'OPCs':['PDGFRA', 'CSPG4', 'VCAN', 'GPR17']        # OPCs
+}
 
 
 def generate_synthetic_mathys_reference(raw_data_dir, test_mode=False):
@@ -260,9 +272,78 @@ def nnls_deconvolve(bulk_profile, reference_matrix):
     return proportions
 
 
-def save_deconvolved_data(proportions_df, deconvolved_df, processed_dir):
+def validate_marker_concordance(deconvolved_df, cell_types):
     """
-    Save deconvolution results (proportions and per-cell-type profiles).
+    Validates deconvolution by checking if canonical markers are correctly assigned.
+    (Layer A validation in UPGRADED_RESEARCH_PLAN_V3)
+    """
+    logging.info("  Running Marker-Concordance Validation (Layer A)...")
+    
+    validation_results = {}
+    
+    # In test mode, we might have GENE_X instead of real markers
+    # We check both the real makers and fallback to early genes if needed
+    for ct in cell_types:
+        markers = CANONICAL_MARKERS.get(ct, [])
+        ct_data = deconvolved_df[deconvolved_df['cell_type'] == ct]
+        
+        if ct_data.empty:
+            continue
+            
+        # Get mean abundance of markers for this cell-type profile
+        # Since this is "deconvolved", the profile for 'ct' should have 
+        # higher marker abundance than other profiles for these specific marker IDs.
+        
+        # Calculate mean abundance for ALL proteins in this cell-type profile
+        ct_means = ct_data.groupby('protein_id')['abundance'].mean()
+        
+        # Check available markers in the dataset
+        available_markers = [m for m in markers if m in ct_means.index]
+        
+        # If no real markers, use "GENE_0,1,2" as proxies for CT 0,1,2 in test mode
+        if not available_markers:
+            # Simple heuristic for synthetic data alignment
+            ct_idx = sorted(list(cell_types)).index(ct)
+            available_markers = [f"GENE_{ct_idx}", f"GENE_{ct_idx+10}"]
+            available_markers = [m for m in available_markers if m in ct_means.index]
+            
+        if not available_markers:
+            validation_results[ct] = {'status': 'MISSING', 'purity': 0.0}
+            continue
+            
+        # Calculate "Concordance Score" (C-score):
+        # Avg marker abundance in this CT / Avg marker abundance across ALL CTs
+        # (This is a simplified internal metric for validation)
+        
+        marker_vals_this_ct = ct_means.loc[available_markers].mean()
+        
+        # Get avg marker values in global data
+        all_ct_means = deconvolved_df.groupby(['cell_type', 'protein_id'])['abundance'].mean()
+        other_ct_vals = []
+        for other_ct in cell_types:
+            if other_ct == ct: continue
+            try:
+                other_ct_vals.append(all_ct_means.loc[other_ct].loc[available_markers].mean())
+            except KeyError:
+                other_ct_vals.append(0.0)
+        
+        avg_others = np.mean(other_ct_vals) if other_ct_vals else 0.0001
+        purity = marker_vals_this_ct / (marker_vals_this_ct + avg_others + 1e-8)
+        
+        validation_results[ct] = {
+            'status': 'PASS' if purity > 0.6 else 'LOW_CONFIDENCE',
+            'purity': float(purity),
+            'markers_tested': available_markers
+        }
+        
+        logging.info(f"    {ct:5s} | Purity: {purity:.2%} | Status: {validation_results[ct]['status']}")
+        
+    return validation_results
+
+
+def save_deconvolved_data(proportions_df, deconvolved_df, validation_results, processed_dir):
+    """
+    Save deconvolution results (proportions, profiles, and validation).
     """
     os.makedirs(processed_dir, exist_ok=True)
     
@@ -276,7 +357,13 @@ def save_deconvolved_data(proportions_df, deconvolved_df, processed_dir):
     deconvolved_df.to_csv(profiles_file, index=False)
     logging.info(f"  Saved: deconvolved_profiles.csv ({deconvolved_df.shape})")
     
-    return props_file, profiles_file
+    # Save validation results
+    val_file = f"{processed_dir}/deconvolution_validation.json"
+    with open(val_file, 'w') as f:
+        json.dump(validation_results, f, indent=4)
+    logging.info(f"  Saved: deconvolution_validation.json")
+    
+    return props_file, profiles_file, val_file
 
 def compute_deconvolved_profiles(bulk_df, proportions_df, reference_matrix, cell_types):
     """
@@ -602,7 +689,8 @@ def main(data_dir="data", results_dir="results", skip_deconvolution=False, test_
             proportions_list.append(proportions)
 
         # Create DataFrame from proportions list
-        ct_names = [f'ct_{ct}' for ct in sorted(cell_types)]
+        sorted_types = sorted(list(cell_types))
+        ct_names = [f'ct_{ct}' for ct in sorted_types]
         proportions_df = pd.DataFrame(
             proportions_list,
             index=proteomics_df.index,
@@ -611,13 +699,16 @@ def main(data_dir="data", results_dir="results", skip_deconvolution=False, test_
 
         logger.info(f"  Deconvolved {len(proteomics_df)} patients")
 
-        # STEP 5: Save outputs
-        logger.info("[5/5] Saving outputs...")
+        # STEP 5: Save and Validate
+        logger.info("[5/5] Saving and Validating...")
         
         # Calculate protein-level cell-type profiles before saving
-        deconvolved_df = compute_deconvolved_profiles(proteomics_df, proportions_df, reference_matrix, cell_types)
+        deconvolved_df = compute_deconvolved_profiles(proteomics_df, proportions_df, reference_matrix, sorted_types)
         
-        save_deconvolved_data(proportions_df, deconvolved_df, processed_dir)
+        # Run Marker-Concordance Validation (Plan Layer A)
+        validation_results = validate_marker_concordance(deconvolved_df, sorted_types)
+        
+        save_deconvolved_data(proportions_df, deconvolved_df, validation_results, processed_dir)
 
         # Generate visualization
         metadata_file = f"{processed_dir}/rosmap_metadata.csv"

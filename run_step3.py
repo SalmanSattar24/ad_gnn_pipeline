@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath('src'))
 
 from step3.step_3a_feature_engineering import main as data_prep_main
 from step3.step_3e_stability import main as stability_main
+from step3.step_3f_benchmarking import main as benchmarking_main
 
 class Step3Runner:
     def __init__(self, data_dir='data', results_dir='results', test_mode=False):
@@ -48,7 +49,8 @@ class Step3Runner:
         
         steps = [
             ("3A: GNN Feature Engineering", 1, data_prep_main),
-            ("3E: GNN Training & Stability Protocol", 5, stability_main) # E is the orchestrator
+            ("3E: GNN Training & Stability Protocol", 5, stability_main), # E is the orchestrator
+            ("3F: Machine Learning Baselines", 6, benchmarking_main)
         ]
         
         success_count = 0
@@ -60,22 +62,27 @@ class Step3Runner:
                 return False
                 
         self._generate_report(success_count, time.time() - self.start_time)
-        return success_count == 2
+        return success_count == len(steps)
 
     def _generate_report(self, success_count, total_time):
-        status = "SUCCESS" if success_count == 2 else f"PARTIAL ({success_count}/2)"
+        status = "SUCCESS" if success_count == 3 else f"PARTIAL ({success_count}/3)"
         self.logger.info(f"\n\n{'='*70}\nSTEP 3 FINAL SUMMARY REPORT\n{'='*70}")
         self.logger.info(f"\nOverall Status: {status}")
         self.logger.info(f"Total Runtime: {total_time/60:.1f} minutes ({total_time:.0f}s)\nStep Results:")
         
-        for i in [1, 5]:
+        for i in [1, 5, 6]:
             k = f'step{i}'
             if k in self.results:
                 r = self.results[k]
-                name = "Feature Engineering" if i == 1 else "Stability Protocol"
+                if i == 1: name = "Feature Engineering"
+                elif i == 5: name = "Stability Protocol"
+                else: name = "ML Benchmarking"
+                
                 self.logger.info(f"  Step 3{chr(64+i)}: {r['status']:4s} ({r['time']:.1f}s) - {name}")
                 if r['status'] == 'PASS' and i == 5:
                     self.logger.info(f"        -> Subtypes analyzed: {r['result'].get('subtypes_analyzed')}")
+                if r['status'] == 'PASS' and i == 6:
+                    self.logger.info(f"        -> Benchmarks run: {r['result'].get('benchmarks_run')}")
 
 if __name__ == '__main__':
     import argparse
