@@ -59,7 +59,7 @@ import logging
 warnings.filterwarnings('ignore')
 
 
-def setup_synthetic_data(raw_data_dir, n_patients=180, n_proteins=5000, test_mode=False):
+def setup_synthetic_data(raw_data_dir, n_patients=100, n_proteins=500, test_mode=False):
     """
     Generate synthetic raw proteomics and metadata for testing without real data.
 
